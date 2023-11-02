@@ -9,26 +9,10 @@ struct Function {
 	source string
 }
 
-struct LiveC {
-	mut:
-		functions []Function
-		main_func string
-		spaces int
-		first string
-}
-
 struct RGB {
 	r int
 	g int 
 	b int
-}
-
-struct Output {
-	mut:
-		stdout []string
-		stdhighlight []RGB
-		prompt string
-		instance LiveC
 }
 
 struct Highlighter {
@@ -36,8 +20,19 @@ struct Highlighter {
 	conditional RGB
 	numbers RGB
 	strings RGB
+	brackets1 RGB
+	brackets2 RGB
 }
 
+struct LiveC {
+	mut:
+		functions []Function
+		main_func string
+		spaces int
+		first string
+		last string
+		hl Highlighter
+}
 pub fn (h Highlighter) highlight(input string) []RGB {
 	mut out:=[]RGB{}
 	conditionals:=[
@@ -50,17 +45,31 @@ pub fn (h Highlighter) highlight(input string) []RGB {
 		"switch"
 	]
 	mut current:=""
+	mut instr:=false
 	for c in input {
-		current+=c.ascii_str()
+		c_ascii:=c.ascii_str()
+		current+=c_ascii
 		if current in conditionals {
-			for x in 0..current.len-1 {
+			for _ in 0..current.len-1 {
 				_:=out.pop()
 			}
-			for counter in current {
+			for _ in current {
 				out << h.conditional
 			}
 			current=""
-		} else {
+		} else if c_ascii in ["{","}"] {
+			out << h.brackets1
+			current=""
+		} else if c_ascii in ["(",")","[","]"] {
+			out << h.brackets2
+			current=""
+		} else if c_ascii in ["'","\"","`"] {
+			instr=!instr
+			out << h.strings
+		} else if instr {
+			out << h.strings
+		}
+		else {
 			out << h.default
 		}
 	}
@@ -76,12 +85,6 @@ pub fn (r []RGB) print(s string) {
 		i+=1
 	}
 }
-
-pub fn (o Output) input() {
-	raw:=os.input(o.prompt)
-
-}
-
 
 fn (mut l LiveC) function(defline string) {
 	l.spaces+=2
@@ -131,59 +134,50 @@ pub fn (mut l LiveC) source() string {
 	return source
 }
 
+
 pub fn (l LiveC) input(prompt string) string {
-	mut read:=Readline{}
-	read.enable_raw_mode()
-	mut out:=""
-	mut raw:=`\0`
-	for raw!=`\n` {
-		if raw!=`\0` && int(raw)!=127 && int(raw)!=8 {
-			out+=raw.str()
-		}
-		temp:="${" ".repeat((l.spaces*2))}"
-		print('\033[F\033[K')
-		print(temp)
-		hl:=Highlighter{
-			default: RGB{
-				r: 45,
-				g: 66, 
-				b: 0
-			},
-			conditional: RGB{
-				r: 204,
-				g: 0,
-				b: 0
-			},
-			numbers: RGB{
-				r: 61,
-				g: 114,
-				b: 0
-			},
-			strings: RGB{
-				r: 99,
-				g: 0,
-				b: 186
-			}
-		}
-		hl.highlight(out).print(out)
-		println("")
-		print(prompt)
-		t:=read.read_char() or { panic(err) }
-		if t==27 { // escape
-			read.disable_raw_mode()
-			panic("Goodbye")
-		} else if t==10 || t==13 { //enter
+    mut read := Readline{}
+    read.enable_raw_mode()
+    mut out := ""
+    mut raw := `\0`
+    mut cursor_position := 0
+
+    for raw != `\n` {
+        if raw != `\0` && int(raw) != 127 && int(raw) != 8 {
+            out += raw.str()
+            cursor_position += 1
+        }
+        temp := "${' '.repeat((l.spaces * 2))}"
+        print('\033[F\033[K') // wipe current line
+        print(temp)
+
+        l.hl.highlight(out).print(out)
+        println("")
+
+        // Move the cursor to the correct position
+        cursor_movement := '\033[' + cursor_position.str() + 'C'
+        print(cursor_movement)
+        print(prompt)
+
+        t := read.read_char() or { panic(err) }
+
+        if t == 27 { // escape
+            read.disable_raw_mode()
+            panic("Goodbye")
+        } else if t == 10 || t == 13 { // enter
+            read.disable_raw_mode()
 			println("")
-			read.disable_raw_mode()
-			return out
-		} else if t==8 || t==127 {
-			out=out[..out.len-1]
-		}
-		raw=rune(t)
-		
-	}
-	read.disable_raw_mode()
-	return out
+            return out
+        } else if t == 8 || t == 127 { // backspace
+            if cursor_position > 0 {
+                out = out[..out.len - 1]
+                cursor_position -= 1
+            }
+        }
+        raw = rune(t)
+    }
+    read.disable_raw_mode()
+    return out
 }
 
 fn (mut l LiveC) check_and_out(statement string) string {
@@ -201,9 +195,11 @@ fn (mut l LiveC) check_and_out(statement string) string {
 		for {
 			mut inp:=l.input("${" ".repeat(l.spaces*2)}")
 			if inp.contains_only("} ") {
-				temp:="${" ".repeat((l.spaces*2)-(1+first.len))}}"
-				print('\033[F\033[K')
-				println(temp)
+				temp:="${" ".repeat((l.spaces*2)-(1+first.len))}"
+				print('\033[F\033[K'.repeat(2))
+				print(temp)
+				l.hl.highlight('}').print('}')
+				println("")
 				
 				temp_source+="}\n"
 				l.spaces-=2
@@ -230,10 +226,21 @@ pub fn (mut l LiveC) statement(statement string) {
 		l.first+=statement+"\n"
 	}
 	else {
+		main_func_bak:=l.main_func
 		l.main_func+=l.check_and_out(statement)+"\n"
 		os.write_file("temp.c", l.source()) or { panic(err) }
-		println(os.execute("tcc -w -run temp.c").output)
+		output:=os.execute("tcc -w -run temp.c")
+		if output.exit_code==0 {
+			print('\033[F\033[K')
+			println("CC: ${output.output[l.last.len..]}")
+			l.last=output.output
+		} else {
+			l.main_func=main_func_bak
+			print('\033[F\033[K')
+			println("$?==${output.exit_code}: ${output.output}")
+		}
 	}
+	println("")
 }
 
 fn main() {
@@ -245,7 +252,41 @@ fn main() {
 #include <stdbool.h>
 #include <stdint.h>
 #include <math.h>
-"
+",
+		last: "",
+		hl: Highlighter{
+            default: RGB{
+                r: 45,
+                g: 66,
+                b: 0
+            },
+            conditional: RGB{
+                r: 204,
+                g: 0,
+                b: 0
+            },
+            numbers: RGB{
+                r: 61,
+                g: 114,
+                b: 0
+            },
+            strings: RGB{
+                r: 99,
+                g: 0,
+                b: 186
+            },
+			brackets1: RGB{
+				r: 30,
+				g: 203,
+				b: 160
+			},
+			brackets2: RGB{
+				r: 230,
+				g: 180,
+				b: 30
+			}
+
+        }
 	}
 	for {
 		x.statement(x.input(""))
