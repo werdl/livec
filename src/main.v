@@ -42,7 +42,8 @@ pub fn (h Highlighter) highlight(input string) []RGB {
 		"for",
 		"case",
 		"default",
-		"switch"
+		"switch",
+		"list"
 	]
 	mut current:=""
 	mut instr:=false
@@ -163,7 +164,7 @@ pub fn (l LiveC) input(prompt string) string {
 
         if t == 27 { // escape
             read.disable_raw_mode()
-            panic("Goodbye")
+            exit(0)
         } else if t == 10 || t == 13 { // enter
             read.disable_raw_mode()
 			println("")
