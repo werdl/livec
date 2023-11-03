@@ -48,7 +48,8 @@ pub fn (h Highlighter) highlight(input string, instring bool) []RGB {
 		"case",
 		"default",
 		"switch",
-		"list"
+		"list",
+		"continue"
 	]
 	types:=[
 		"int",
@@ -94,7 +95,8 @@ pub fn (h Highlighter) highlight(input string, instring bool) []RGB {
 		"union",
 		"typedef",
 		"enum",
-		"typedef"
+		"typedef",
+		"sizeof"
 	]
 	macros:=[
 		"#define",
@@ -312,7 +314,7 @@ fn (mut l LiveC) check_and_out(statement string) string {
 	]
 	first, _ := statement.split_once("(") or { "", "" }
 	mut temp_source:=""
-	if first.trim_space() in keywords || statement[statement.len-1].ascii_str()=="\\" {
+	if (first.trim_space() in keywords && !statement.contains("}")) || statement[statement.len-1].ascii_str()=="\\" {
 		temp_source+=" ".repeat((l.spaces*2)+2)+statement+"\n"
 		l.spaces+=2
 		for {

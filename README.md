@@ -1,5 +1,5 @@
 ## LiveC
-- A little command line project that takes C input line by line, then runs it with `tcc`
+- A little command line project that takes C input line by line, with live syntax highlighting, then runs it
 ## Install
 ### Needs
 `v`
