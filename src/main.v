@@ -37,6 +37,7 @@ struct LiveC {
 		first string
 		last string
 		hl Highlighter
+		compiler string
 }
 pub fn (h Highlighter) highlight(input string, instring bool) []RGB {
 	mut out:=[]RGB{}
@@ -360,12 +361,12 @@ pub fn (mut l LiveC) statement(statement string) {
 		main_func_bak:=l.main_func
 		l.main_func+=l.check_and_out(statement)+"\n"
 		os.write_file("temp.c", l.source()) or { panic(err) }
-		output:=os.execute("tcc -w -run temp.c")
+		output:=os.execute("${l.compiler} -w -run temp.c")
 		if output.output=="" {
 			l.last=""
 		} else if output.exit_code==0{
 			print('\033[F\033[K')
-			println("CC: ${output.output[l.last.len..]}")
+			println("${l.compiler}: ${output.output[l.last.len..]}")
 			l.last=output.output
 		} else{
 			l.main_func=main_func_bak
@@ -377,6 +378,10 @@ pub fn (mut l LiveC) statement(statement string) {
 }
 
 fn main() {
+	compiler:=detect()
+	if compiler=="no_compiler" {
+		error("No suitable C compiler in your path")
+	}
 	mut x:=LiveC{
 		spaces: 0,
 		first: "
@@ -400,6 +405,7 @@ fn main() {
 #include <sys/stat.h>
 ",
 		last: "",
+		compiler: compiler
 		hl: Highlighter{
             default: RGB{
                 r: 200,
