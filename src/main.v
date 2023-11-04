@@ -39,6 +39,12 @@ struct LiveC {
 		hl Highlighter
 		compiler string
 }
+
+struct Termsize {
+	pub:
+		x int
+		y int
+}
 pub fn (h Highlighter) highlight(input string, instring bool) []RGB {
 	mut out:=[]RGB{}
 	conditionals:=[
@@ -266,12 +272,21 @@ pub fn (l LiveC) input(prompt string, instring bool) string {
     read.enable_raw_mode()
     mut out := ""
     mut raw := `\0`
-    mut cursor_position := 0
-
+    mut cursor_position := term.get_cursor_position() or { panic(err) }
+	sizex, sizey:=term.get_terminal_size()
+	size:=Termsize{
+		x: sizex,
+		y: sizey
+	}
     for raw != `\n` {
         if raw != `\0` && int(raw) != 127 && int(raw) != 8 {
             out += raw.str()
-            cursor_position += 1
+			if size.x!=cursor_position.x {
+            	cursor_position.x += 1
+			} else {
+				cursor_position.y+=1
+				cursor_position.x=0
+			}
         }
         temp := "${' '.repeat((l.spaces * 2))}"
         print('\033[F\033[K') // wipe current line
@@ -280,10 +295,9 @@ pub fn (l LiveC) input(prompt string, instring bool) string {
         l.hl.highlight(out, instring).print(out)
         println("")
 
+
         // Move the cursor to the correct position
-        cursor_movement := '\033[' + cursor_position.str() + 'C'
-        print(cursor_movement)
-        print(prompt)
+        term.set_cursor_position(cursor_position)
 
         t := read.read_char() or { panic(err) }
 
@@ -295,9 +309,9 @@ pub fn (l LiveC) input(prompt string, instring bool) string {
 			println("")
             return out
         } else if t == 8 || t == 127 { // backspace
-            if cursor_position > 0 {
+            if cursor_position.x > 1 {
                 out = out[..out.len - 1]
-                cursor_position -= 1
+                cursor_position.x -= 1
             }
         }
         raw = rune(t)
@@ -378,6 +392,7 @@ pub fn (mut l LiveC) statement(statement string) {
 }
 
 fn main() {
+	_:=term.set_terminal_title("LiveC - Esc to exit")
 	compiler:=detect()
 	if compiler=="no_compiler" {
 		error("No suitable C compiler in your path")
