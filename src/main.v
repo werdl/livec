@@ -401,17 +401,17 @@ pub fn (mut l LiveC) statement(statement string) {
 		main_func_bak:=l.main_func
 		l.main_func+=l.check_and_out(statement)+"\n"
 		os.write_file("temp.c", l.source()) or { panic(err) }
-		output:=os.execute("${l.compiler} -w -run temp.c")
+		output:=os.execute("${l.compiler} -w -o temp temp.c && ./temp")
 		if output.output=="" {
 			l.last=""
-		} else if output.exit_code==0{
+		} else if output.exit_code==0 {
 			print('\033[F\033[K')
 			println("${l.compiler}: ${output.output[l.last.len..]}")
 			l.last=output.output
 		} else{
 			l.main_func=main_func_bak
 			print('\033[F\033[K')
-			println("$?==${output.exit_code}: ${output.output}")
+			println("(${l.compiler}) $?==${output.exit_code}: ${output.output}")
 		}
 	}
 	println("")
