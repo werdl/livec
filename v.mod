@@ -1,7 +1,7 @@
 Module {
 	name: 'livec'
 	description: 'Interpreted C'
-	version: '0.1.0'
+	version: '0.3.1'
 	license: 'MIT'
 	dependencies: []
 }

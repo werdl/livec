@@ -4,17 +4,22 @@ import os
 import term
 import readline { Readline }
 
+
+// Function structure
 struct Function {
 	def string
 	source string
 }
 
+// RGB storage
 struct RGB {
 	r int
 	g int 
 	b int
 }
 
+
+// Highlighter configuration
 struct Highlighter {
 	default RGB
 	conditional RGB
@@ -29,7 +34,7 @@ struct Highlighter {
 	symbols RGB
 	constants RGB
 }
-
+// global structure (holds methods)
 struct LiveC {
 	mut:
 		functions []Function
@@ -68,6 +73,7 @@ pub fn (h Highlighter) highlight(input string, instring bool) []RGB {
 		"signed",
 		"unsigned",
 		"size_t",
+    "short",
 		'atomic_bool',
 		'atomic_char',
 		'atomic_schar',
